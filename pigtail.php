@@ -368,6 +368,7 @@ while(true)
 
     // Get last seen event
     $startrow=getNextHBaseRow();
+    if(DEBUG) { echo "Start row: $startrow \n"; }
 
     // Get HBase pointer
     $scanner = $client->scannerOpenWithStop("hogzilla_events",$startrow,"",
@@ -379,9 +380,11 @@ while(true)
     while (true) 
     {
         $row=$client->scannerGet($scanner);
+        if($lastHBaseID==0) { $lastHBaseID=$startrow; continue; } /* dismiss the first */
         if(sizeof($row)==0) break;
         saveEvent($row,$con,$cid++);
         $lastHBaseID = $row[0]->row;
+        if(DEBUG) { echo "Last HBaseID: $lastHBaseID \n"; }
     }
 
     // Update last CID on MySQL, this counter will be used on last access
