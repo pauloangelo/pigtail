@@ -380,7 +380,7 @@ while(true)
     while (true) 
     {
         $row=$client->scannerGet($scanner);
-        if($lastHBaseID==0) { $lastHBaseID=$startrow; continue; } /* dismiss the first */
+        if($lastHBaseID==0 and $startrow!=0) { $lastHBaseID=$startrow; continue; } /* dismiss the first */
         if(sizeof($row)==0) break;
         saveEvent($row,$con,$cid++);
         $lastHBaseID = $row[0]->row;
