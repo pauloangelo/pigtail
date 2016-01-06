@@ -377,14 +377,20 @@ while(true)
 
     // Loop events to insert into MySQL
     $lastHBaseID=0;
-    while (true) 
+    try
     {
-        $row=$client->scannerGet($scanner);
-        if($lastHBaseID==0 and $startrow!=0) { $lastHBaseID=$startrow; continue; } /* dismiss the first */
-        if(sizeof($row)==0) break;
-        saveEvent($row,$con,$cid++);
-        $lastHBaseID = $row[0]->row;
-        if(DEBUG) { echo "Last HBaseID: $lastHBaseID \n"; }
+        while (true) 
+        {
+                $row=$client->scannerGet($scanner);
+                if($lastHBaseID==0 and $startrow!=0) { $lastHBaseID=$startrow; continue; } /* dismiss the first */
+                if(sizeof($row)==0) break;
+                saveEvent($row,$con,$cid++);
+                $lastHBaseID = $row[0]->row;
+                if(DEBUG) { echo "Last HBaseID: $lastHBaseID \n"; }
+        }
+    } catch(Exception $e) 
+    {
+      echo 'ERROR: ',  $e->getMessage(), "\n";
     }
 
     // Update last CID on MySQL, this counter will be used on last access
