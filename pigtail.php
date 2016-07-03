@@ -386,6 +386,7 @@ while(true)
                 if(sizeof($row)==0) break;
                 saveEvent($row,$con,$cid++);
                 $lastHBaseID = $row[0]->row;
+                $client->deleteAllRow("hogzilla_events", $row[0]->row, array()) ;
                 if(DEBUG) { echo "Last HBaseID: $lastHBaseID \n"; }
         }
     } catch(Exception $e) 
