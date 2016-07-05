@@ -371,7 +371,8 @@ while(true)
     if(DEBUG) { echo "Start row: $startrow \n"; }
 
     // Get HBase pointer
-    $scanner = $client->scannerOpenWithStop("hogzilla_events",$startrow,"",
+    //$scanner = $client->scannerOpenWithStop("hogzilla_events",$startrow,"",
+    $scanner = $client->scannerOpenWithStop("hogzilla_events","","",
                             array("event:lower_ip","event:upper_ip","event:note","event:signature_id"),
                             array());
 
@@ -382,7 +383,7 @@ while(true)
         while (true) 
         {
                 $row=$client->scannerGet($scanner);
-                if($lastHBaseID==0 and $startrow!=0) { $lastHBaseID=$startrow; continue; } /* dismiss the first */
+                //if($lastHBaseID==0 and $startrow!=0) { $lastHBaseID=$startrow; continue; } /* dismiss the first */
                 if(sizeof($row)==0) break;
                 saveEvent($row,$con,$cid++);
                 $lastHBaseID = $row[0]->row;
