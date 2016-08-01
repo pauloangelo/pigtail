@@ -370,16 +370,16 @@ while(true)
     $startrow=getNextHBaseRow();
     if(DEBUG) { echo "Start row: $startrow \n"; }
 
-    // Get HBase pointer
-    //$scanner = $client->scannerOpenWithStop("hogzilla_events",$startrow,"",
-    $scanner = $client->scannerOpenWithStop("hogzilla_events","","",
-                            array("event:lower_ip","event:upper_ip","event:note","event:signature_id"),
-                            array());
-
-    // Loop events to insert into MySQL
     $lastHBaseID=0;
     try
     {
+        // Get HBase pointer
+        //$scanner = $client->scannerOpenWithStop("hogzilla_events",$startrow,"",
+        $scanner = $client->scannerOpenWithStop("hogzilla_events","","",
+                                array("event:lower_ip","event:upper_ip","event:note","event:signature_id"),
+                                array());
+
+        // Loop events to insert into MySQL
         while (true) 
         {
                 $row=$client->scannerGet($scanner);
