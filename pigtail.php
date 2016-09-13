@@ -67,6 +67,15 @@ $waitTime=600;
 $GLOBALS['THRIFT_ROOT'] = '/usr/lib/php';
 
 define("DEBUG",false);
+define("GRAYLOG",true);
+define("MYSQL",true); // Must be always true... :)  Future implementation... (TODO)
+
+
+// GELF Stuff, for GrayLog
+if(GRAYLOG)
+{
+   require_once __DIR__ . '/../vendor/autoload.php';
+}
 
 // Thrift stuff
 require_once($GLOBALS['THRIFT_ROOT'].'/Thrift/ClassLoader/ThriftClassLoader.php');
@@ -130,6 +139,7 @@ function saveSensor($rowresult,$con)
 function saveSignature($rowresult,$con) {
 
    global $sig_id;
+   global $sig_data;
 
    if(DEBUG) {  echo "Save signature into MySQL\n" ;}
 
@@ -140,6 +150,12 @@ function saveSignature($rowresult,$con) {
    $signature_revision  = $values["signature:revision"]->value;
    $signature_hid       = $values["signature:id"]->value;
    $signature_group_id  = $values["signature:group_id"]->value;
+
+   $sig_data[$signature_hid]["signature_class"]      = $signature_class;
+   $sig_data[$signature_hid]["signature_name"]       = $signature_name;
+   $sig_data[$signature_hid]["signature_priority"]   = $signature_priority;
+   $sig_data[$signature_hid]["signature_revision"]   = $signature_revision;
+   $sig_data[$signature_hid]["signature_group_id"]   = $signature_group_id;
 
    // Check if this signature already exists. 
    // And cache CID in array
@@ -177,6 +193,7 @@ function saveEvent($rowresult,$con, $cid)
 {
    global $sensorid;
    global $sig_id;
+   global $sig_data;
 
    if(DEBUG) {  echo "Save event into MySQL\n" ;}
 
@@ -187,6 +204,35 @@ function saveEvent($rowresult,$con, $cid)
    $upper_ip        = $upper_ipa[1];
    $note_body       = $values["event:note"]->value;
    $signature_hid   = $values["event:signature_id"]->value;
+
+   // GrayLog
+   if(GRAYLOG)
+   {
+       //LogLevel::CRITICAL
+       //LogLevel::WARNING
+       //LogLevel::NOTICE
+       $sig_data[$signature_hid]["signature_class"]      = $signature_class;
+       $sig_data[$signature_hid]["signature_name"]       = $signature_name;
+       $sig_data[$signature_hid]["signature_priority"]   = $signature_priority;
+       $sig_data[$signature_hid]["signature_revision"]   = $signature_revision;
+       $sig_data[$signature_hid]["signature_group_id"]   = $signature_group_id;
+
+
+        $message = new Gelf\Message();
+        $message->setShortMessage("Foobar!")
+                ->setLevel(\Psr\Log\LogLevel::ALERT)
+                ->setFullMessage("There was a foo in bar")
+                ->setFacility("example-facility")
+                ->setAdditional("key","value");
+
+        $publisher->publish($message);
+
+        //$logger = new Gelf\Logger($publisher, "example-facility");
+        //warning
+        // info
+        //critical
+        //$logger->alert("Foobaz!");
+   }
 
 // Actually, we have a flow and not a single packet. 
 // We are using iphdr below because it is needed to Snorby.
