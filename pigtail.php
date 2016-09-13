@@ -193,6 +193,11 @@ function saveEvent($rowresult,$con, $cid)
 // insert into udphdr(sid,cid,udp_sport,udp_dport,udp_len,udp_csum) values(sid,cid,udp_sport,udp_dport,udp_len,udp_csum)
 
     $cur_sigid=$sig_id[$signature_hid];
+
+    // If signatures doesn't exist, add it into DB
+    if(strlen($cur_sigid)==0)
+      saveSignaturesIfNeeded();
+
     $sql[]="insert into event(sid,cid,signature,notes_count,type,number_of_events,timestamp) 
                     values('$sensorid','$cid','$cur_sigid',1,1,0,now());";
     $sql[]="insert into iphdr(sid,cid,ip_src,ip_dst,ip_ver,ip_hlen,ip_tos,ip_len,ip_id,ip_flags,ip_off,ip_ttl,ip_proto,ip_csum)
@@ -311,6 +316,28 @@ function saveLastCID($sensorid,$cid,$con)
    saveDB($sql,$con);
 }
 
+/**
+* Comment-me!
+*/
+function saveSignaturesIfNeeded()
+{
+    global $client;
+
+    // Insert Signatures if needed. Get Signature information
+    if(DEBUG) {  echo "Insert signatures, if needed\n" ;}
+    $scanner = $client->scannerOpenWithStop("hogzilla_signatures","","",
+                        array("signature:class","signature:name","signature:priority",
+                              "signature:revision","signature:id","signature:group_id"),
+                        array());
+    while (true) 
+    {
+        $row=$client->scannerGet($scanner);
+        if(sizeof($row)==0) break;
+        saveSignature($row,$con);
+    }
+    $client->scannerClose($scanner);
+}
+
 /*
  * STARTUP PHASE: get sensor and signatures information.
  */
@@ -330,19 +357,7 @@ if(sizeof($row)==0) { die("Sensor table is empty in HBase\n"); }
 saveSensor($row,$con);
 $client->scannerClose($scanner);
 
-// Insert Signatures if needed. Get Signature information
-if(DEBUG) {  echo "Insert signatures, if needed\n" ;}
-$scanner = $client->scannerOpenWithStop("hogzilla_signatures","","",
-                    array("signature:class","signature:name","signature:priority",
-                          "signature:revision","signature:id","signature:group_id"),
-                    array());
-while (true) 
-{
-    $row=$client->scannerGet($scanner);
-    if(sizeof($row)==0) break;
-    saveSignature($row,$con);
-}
-$client->scannerClose($scanner);
+saveSignaturesIfNeeded();
 
 // Close everything
 if(DEBUG) {  echo "Close connections\n" ;}
@@ -354,25 +369,26 @@ $transport->close();
  */
 while(true)
 {
-    if(DEBUG) {  echo "Inside loop\n" ;}
-    // Open HBase and MySQL connection
-    if(DEBUG) {  echo "Open connections\n" ;}
-    $transport->open();
-    $con=mysql_connect("$mysqlHost:$mysqlPort","$mysqlUser","$mysqlPass"); 
-    mysql_select_db ($mysqlDbName,$con);
-    if (!$con)
-    { die('Could not connect to MySQL: ' . mysql_error()); }
-
-    // Get last CID from MySQL, this counter will be used on last access
-    $cid=getLastCID($sensorid,$con);
-
-    // Get last seen event
-    $startrow=getNextHBaseRow();
-    if(DEBUG) { echo "Start row: $startrow \n"; }
-
-    $lastHBaseID=0;
     try
     {
+        if(DEBUG) {  echo "Inside loop\n" ;}
+        // Open HBase and MySQL connection
+        if(DEBUG) {  echo "Open connections\n" ;}
+        $transport->open();
+        $con=mysql_connect("$mysqlHost:$mysqlPort","$mysqlUser","$mysqlPass"); 
+        mysql_select_db ($mysqlDbName,$con);
+        if (!$con)
+        { die('Could not connect to MySQL: ' . mysql_error()); }
+
+        // Get last CID from MySQL, this counter will be used on last access
+        $cid=getLastCID($sensorid,$con);
+
+        // Get last seen event
+        $startrow=getNextHBaseRow();
+        if(DEBUG) { echo "Start row: $startrow \n"; }
+
+        $lastHBaseID=0;
+
         // Get HBase pointer
         //$scanner = $client->scannerOpenWithStop("hogzilla_events",$startrow,"",
         $scanner = $client->scannerOpenWithStop("hogzilla_events","","",
@@ -390,21 +406,22 @@ while(true)
                 $client->deleteAllRow("hogzilla_events", $row[0]->row, array()) ;
                 if(DEBUG) { echo "Last HBaseID: $lastHBaseID \n"; }
         }
+
+        // Update last CID on MySQL, this counter will be used on last access
+        saveLastCID($sensorid,$cid,$con);
+
+        // Save last seen HBase event
+        saveNextHBaseRow($lastHBaseID);
+
+        // Close connections (HBase and MySQL)
+        mysql_close($con);
+        $client->scannerClose($scanner);
+        $transport->close();
+
     } catch(Exception $e) 
     {
       echo 'ERROR: ',  $e->getMessage(), "\n";
     }
-
-    // Update last CID on MySQL, this counter will be used on last access
-    saveLastCID($sensorid,$cid,$con);
-
-    // Save last seen HBase event
-    saveNextHBaseRow($lastHBaseID);
-
-    // Close connections (HBase and MySQL)
-    mysql_close($con);
-    $client->scannerClose($scanner);
-    $transport->close();
 
     // Wait some time to try fetch more events
     sleep($waitTime);
