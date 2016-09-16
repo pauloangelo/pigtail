@@ -26,3 +26,9 @@ INSTALLATION EXAMPLE
   $ composer update
   $ ./pigtail.php
 
+
+wget http://geolite.maxmind.com/download/geoip/database/GeoLiteCity.dat.gz
+gunzip GeoLiteCity.dat.gz
+sudo mkdir -v /usr/share/GeoIP
+sudo mv -v GeoLiteCity.dat /usr/share/GeoIP/GeoIPCity.dat
+sudo apt-get install php5-geoip

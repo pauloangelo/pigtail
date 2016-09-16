@@ -106,6 +106,7 @@ $client     = new Hbase\HbaseClient($protocol);
 function saveSensor($rowresult,$con) 
 {
    global $sensorid;
+   global $sensor_hostname;
 
    if(DEBUG) {  echo "Save sensor into MySQL\n" ;}
    $values = $rowresult[0]->columns;
@@ -194,6 +195,7 @@ function saveEvent($rowresult,$con, $cid)
    global $sensorid;
    global $sig_id;
    global $sig_data;
+   global $sensor_hostname;
 
    if(DEBUG) {  echo "Save event into MySQL\n" ;}
 
@@ -211,19 +213,35 @@ function saveEvent($rowresult,$con, $cid)
        //LogLevel::CRITICAL
        //LogLevel::WARNING
        //LogLevel::NOTICE
-       $sig_data[$signature_hid]["signature_class"]      = $signature_class;
-       $sig_data[$signature_hid]["signature_name"]       = $signature_name;
-       $sig_data[$signature_hid]["signature_priority"]   = $signature_priority;
-       $sig_data[$signature_hid]["signature_revision"]   = $signature_revision;
-       $sig_data[$signature_hid]["signature_group_id"]   = $signature_group_id;
+       //$sig_data[$signature_hid]["signature_class"]      = $signature_class;
+       //$sig_data[$signature_hid]["signature_name"]       = $signature_name;
+       //$sig_data[$signature_hid]["signature_priority"]   = $signature_priority;
+       //$sig_data[$signature_hid]["signature_revision"]   = $signature_revision;
+       //$sig_data[$signature_hid]["signature_group_id"]   = $signature_group_id;
+       //->setFacility("example-facility")
 
+        $location_name = geoip_record_by_name($lower_ip);
+        $location_name[country_code];
+        [country_name] => United States
+              [region] => CA
+                  [city] => Sunnyvale
+                      [postal_code] => 94089
+                          [latitude] => 37.4249000549
+                              [longitude] => -122.007400513
+                                  [dma_code] => 807
+                                      [area_code] => 408
 
         $message = new Gelf\Message();
-        $message->setShortMessage("Foobar!")
+        $message->setShortMessage($sig_data[$signature_hid]["signature_name"]." - ".$lower_ip)
                 ->setLevel(\Psr\Log\LogLevel::ALERT)
-                ->setFullMessage("There was a foo in bar")
-                ->setFacility("example-facility")
+                ->setFullMessage($note_body)
                 ->setAdditional("key","value");
+        "sensor_hostname",$sensor_hostname
+        "reference","http://ids-hogzilla.org/signature-db/$signature_hid"
+        "ip",$lower_ip
+        "ports",$ports
+        "location",$location_name
+        "dns reverse",
 
         $publisher->publish($message);
 
