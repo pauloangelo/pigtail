@@ -66,6 +66,8 @@ $walFilePath=realpath(dirname(__FILE__))."/pig.wal";
 $waitTime=600;
 $GLOBALS['THRIFT_ROOT'] = '/usr/lib/php';
 
+$graylog_host="177.220.1.6";
+
 define("DEBUG",false);
 define("GRAYLOG",true);
 define("MYSQL",true); // Must be always true... :)  Future implementation... (TODO)
@@ -74,7 +76,7 @@ define("MYSQL",true); // Must be always true... :)  Future implementation... (TO
 // GELF Stuff, for GrayLog
 if(GRAYLOG)
 {
-   require_once __DIR__ . '/../vendor/autoload.php';
+   require_once __DIR__ . '/vendor/autoload.php';
 }
 
 // Thrift stuff
@@ -196,6 +198,7 @@ function saveEvent($rowresult,$con, $cid)
    global $sig_id;
    global $sig_data;
    global $sensor_hostname;
+   global $publisher;
 
    if(DEBUG) {  echo "Save event into MySQL\n" ;}
 
@@ -210,46 +213,27 @@ function saveEvent($rowresult,$con, $cid)
    // GrayLog
    if(GRAYLOG)
    {
-       //LogLevel::CRITICAL
-       //LogLevel::WARNING
-       //LogLevel::NOTICE
-       //$sig_data[$signature_hid]["signature_class"]      = $signature_class;
-       //$sig_data[$signature_hid]["signature_name"]       = $signature_name;
-       //$sig_data[$signature_hid]["signature_priority"]   = $signature_priority;
-       //$sig_data[$signature_hid]["signature_revision"]   = $signature_revision;
-       //$sig_data[$signature_hid]["signature_group_id"]   = $signature_group_id;
-       //->setFacility("example-facility")
-
-        $location_name = geoip_record_by_name($lower_ip);
-        $location_name[country_code];
-        [country_name] => United States
-              [region] => CA
-                  [city] => Sunnyvale
-                      [postal_code] => 94089
-                          [latitude] => 37.4249000549
-                              [longitude] => -122.007400513
-                                  [dma_code] => 807
-                                      [area_code] => 408
+        $location = geoip_record_by_name($lower_ip);
+        $ip_name=gethostbyaddr($lower_ip);
 
         $message = new Gelf\Message();
         $message->setShortMessage($sig_data[$signature_hid]["signature_name"]." - ".$lower_ip)
-                ->setLevel(\Psr\Log\LogLevel::ALERT)
                 ->setFullMessage($note_body)
-                ->setAdditional("key","value");
-        "sensor_hostname",$sensor_hostname
-        "reference","http://ids-hogzilla.org/signature-db/$signature_hid"
-        "ip",$lower_ip
-        "ports",$ports
-        "location",$location_name
-        "dns reverse",
+                ->setAdditional("sensor_hostname",$sensor_hostname)
+                ->setAdditional("reference","http://ids-hogzilla.org/signature-db/$signature_hid")
+                ->setAdditional("ip",$lower_ip)
+                ->setAdditional("ports",$ports)
+                ->setAdditional("location",$location["city"]."/".$location["country_name"])
+                ->setAdditional("dns reverse",$ip_name);
 
+        if($sig_data[$signature_hid]["signature_priority"]==1)
+            $message->setLevel(\Psr\Log\LogLevel::CRITICAL);
+        elseif($sig_data[$signature_hid]["signature_priority"]==2)
+            $message->setLevel(\Psr\Log\LogLevel::WARNING);
+        else
+            $message->setLevel(\Psr\Log\LogLevel::NOTICE);
+        
         $publisher->publish($message);
-
-        //$logger = new Gelf\Logger($publisher, "example-facility");
-        //warning
-        // info
-        //critical
-        //$logger->alert("Foobaz!");
    }
 
 // Actually, we have a flow and not a single packet. 
@@ -260,7 +244,7 @@ function saveEvent($rowresult,$con, $cid)
 
     // If signatures doesn't exist, add it into DB
     if(strlen($cur_sigid)==0)
-      saveSignaturesIfNeeded();
+      saveSignaturesIfNeeded($con);
 
     $sql[]="insert into event(sid,cid,signature,notes_count,type,number_of_events,timestamp) 
                     values('$sensorid','$cid','$cur_sigid',1,1,0,now());";
@@ -383,7 +367,7 @@ function saveLastCID($sensorid,$cid,$con)
 /**
 * Comment-me!
 */
-function saveSignaturesIfNeeded()
+function saveSignaturesIfNeeded($con)
 {
     global $client;
 
@@ -421,7 +405,7 @@ if(sizeof($row)==0) { die("Sensor table is empty in HBase\n"); }
 saveSensor($row,$con);
 $client->scannerClose($scanner);
 
-saveSignaturesIfNeeded();
+saveSignaturesIfNeeded($con);
 
 // Close everything
 if(DEBUG) {  echo "Close connections\n" ;}
@@ -443,6 +427,14 @@ while(true)
         mysql_select_db ($mysqlDbName,$con);
         if (!$con)
         { die('Could not connect to MySQL: ' . mysql_error()); }
+
+        // GrayLog
+        if(GRAYLOG)
+        {
+            $graylogTransport = new Gelf\Transport\UdpTransport($graylog_host, 12201, Gelf\Transport\UdpTransport::CHUNK_SIZE_LAN);
+            $publisher = new Gelf\Publisher();
+            $publisher->addTransport($graylogTransport);
+        }
 
         // Get last CID from MySQL, this counter will be used on last access
         $cid=getLastCID($sensorid,$con);
