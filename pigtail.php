@@ -67,6 +67,7 @@ $waitTime=600;
 $GLOBALS['THRIFT_ROOT'] = '/usr/lib/php';
 
 $graylog_host="177.220.1.6";
+$sensorName="Hogzilla";
 
 define("DEBUG",false);
 define("GRAYLOG",true);
@@ -198,6 +199,7 @@ function saveEvent($rowresult,$con, $cid)
    global $sig_id;
    global $sig_data;
    global $sensor_hostname;
+   global $sensorName;
    global $publisher;
 
    if(DEBUG) {  echo "Save event into MySQL\n" ;}
@@ -213,15 +215,16 @@ function saveEvent($rowresult,$con, $cid)
    // GrayLog
    if(GRAYLOG)
    {
-        $location = geoip_record_by_name($lower_ip);
-        $ip_name=gethostbyaddr($lower_ip);
+        $ipaddr=long2ip($lower_ip);
+        $location = geoip_record_by_name($ipaddr);
+        $ip_name=gethostbyaddr($ipaddr);
 
         $message = new Gelf\Message();
-        $message->setShortMessage($sig_data[$signature_hid]["signature_name"]." - ".$lower_ip)
+        $message->setShortMessage($sig_data[$signature_hid]["signature_name"]." - ".$ipaddr)
                 ->setFullMessage($note_body)
-                ->setAdditional("sensor_hostname",$sensor_hostname)
+                ->setAdditional("sensor_hostname",$sensorName)
                 ->setAdditional("reference","http://ids-hogzilla.org/signature-db/$signature_hid")
-                ->setAdditional("ip",$lower_ip)
+                ->setAdditional("ip",$ipaddr)
                 ->setAdditional("ports",$ports)
                 ->setAdditional("location",$location["city"]."/".$location["country_name"])
                 ->setAdditional("dns reverse",$ip_name);
