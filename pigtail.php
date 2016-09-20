@@ -227,7 +227,7 @@ function saveEvent($rowresult,$con, $cid)
                 ->setAdditional("ip",$ipaddr)
                 ->setAdditional("ports",$ports)
                 ->setAdditional("location",$location["city"]."/".$location["country_name"])
-                ->setAdditional("dns reverse",$ip_name);
+                ->setAdditional("dns_reverse",$ip_name);
 
         if($sig_data[$signature_hid]["signature_priority"]==1)
             $message->setLevel(\Psr\Log\LogLevel::CRITICAL);
