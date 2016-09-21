@@ -216,7 +216,7 @@ function saveEvent($rowresult,$con, $cid)
    if(GRAYLOG)
    {
         $ipaddr=long2ip($lower_ip);
-        $location = geoip_record_by_name($ipaddr);
+        //$location = geoip_record_by_name($ipaddr);
         $ip_name=gethostbyaddr($ipaddr);
 
         $message = new Gelf\Message();
@@ -226,15 +226,23 @@ function saveEvent($rowresult,$con, $cid)
                 ->setAdditional("reference","http://ids-hogzilla.org/signature-db/$signature_hid")
                 ->setAdditional("ip",$ipaddr)
                 ->setAdditional("ports",$ports)
-                ->setAdditional("location",$location["city"]."/".$location["country_name"])
+                ->setAdditional("signature",$sig_data[$signature_hid]["signature_name"])
+                //->setAdditional("location",$location["city"]."/".$location["country_name"])
                 ->setAdditional("dns_reverse",$ip_name);
 
         if($sig_data[$signature_hid]["signature_priority"]==1)
-            $message->setLevel(\Psr\Log\LogLevel::CRITICAL);
-        elseif($sig_data[$signature_hid]["signature_priority"]==2)
-            $message->setLevel(\Psr\Log\LogLevel::WARNING);
-        else
-            $message->setLevel(\Psr\Log\LogLevel::NOTICE);
+        {
+            $message->setLevel(\Psr\Log\LogLevel::CRITICAL)
+                    ->setAdditional("priority","CRITICAL");
+        }elseif($sig_data[$signature_hid]["signature_priority"]==2)
+        {
+            $message->setLevel(\Psr\Log\LogLevel::WARNING)
+                    ->setAdditional("priority","WARNING");
+        }else
+        {
+            $message->setLevel(\Psr\Log\LogLevel::NOTICE)
+                    ->setAdditional("priority","INFO");
+        }
         
         $publisher->publish($message);
    }
