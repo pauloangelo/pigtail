@@ -63,6 +63,7 @@ $mysqlPort="3306";
 
 // Some not so useful variables
 $walFilePath=realpath(dirname(__FILE__))."/pig.wal";
+$walClusterFilePath=realpath(dirname(__FILE__))."/pigCluster.wal";
 $waitTime=600;
 $GLOBALS['THRIFT_ROOT'] = '/usr/lib/php';
 
@@ -163,26 +164,29 @@ function saveSignature($rowresult,$con) {
 
    // Check if this signature already exists. 
    // And cache CID in array
-   $sqlFetch="select sig_id from signature where sig_sid='$signature_hid';";
-   $sig=fetchDB($sqlFetch,$con);
 
-
-   if($sig==NULL)
+   if(MYSQL)
    {
-      $sql[]="insert into signature(sig_class_id,sig_name,sig_priority,sig_rev,sig_sid,sig_gid) 
-                    values('$signature_class','$signature_name','$signature_priority','$signature_revision','$signature_hid','$signature_group_id');";
-      $sql[]="insert into reference(ref_system_id,ref_tag) 
-                    values(8,'http://ids-hogzilla.org/signature-db/$signature_hid');";
-      $sql[]="insert into sig_reference(sig_id,ref_seq,ref_id) 
-                    values((select sig_id from signature where sig_sid='$signature_hid'),1,
-                         (select ref_id from reference where ref_tag='http://ids-hogzilla.org/signature-db/$signature_hid' limit 1));";
-      saveDB($sql,$con);
-      $sqlFetch="select sig_id from signature where sig_sid='$signature_hid'";
-      $sig=fetchDB($sqlFetch,$con);
-      $sig_id[$signature_hid]=$sig[0];
-  } else {
-      $sig_id[$signature_hid]=$sig[0];
-  }
+        $sqlFetch="select sig_id from signature where sig_sid='$signature_hid';";
+        $sig=fetchDB($sqlFetch,$con);
+
+        if($sig==NULL)
+        {
+           $sql[]="insert into signature(sig_class_id,sig_name,sig_priority,sig_rev,sig_sid,sig_gid) 
+                         values('$signature_class','$signature_name','$signature_priority','$signature_revision','$signature_hid','$signature_group_id');";
+           $sql[]="insert into reference(ref_system_id,ref_tag) 
+                         values(8,'http://ids-hogzilla.org/signature-db/$signature_hid');";
+           $sql[]="insert into sig_reference(sig_id,ref_seq,ref_id) 
+                         values((select sig_id from signature where sig_sid='$signature_hid'),1,
+                              (select ref_id from reference where ref_tag='http://ids-hogzilla.org/signature-db/$signature_hid' limit 1));";
+           saveDB($sql,$con);
+           $sqlFetch="select sig_id from signature where sig_sid='$signature_hid'";
+           $sig=fetchDB($sqlFetch,$con);
+           $sig_id[$signature_hid]=$sig[0];
+        }else {
+           $sig_id[$signature_hid]=$sig[0];
+        }
+   }
 }
 
 // I love you! Please stay more with us.
@@ -257,14 +261,50 @@ function saveEvent($rowresult,$con, $cid)
     if(strlen($cur_sigid)==0)
       saveSignaturesIfNeeded($con);
 
-    $sql[]="insert into event(sid,cid,signature,notes_count,type,number_of_events,timestamp) 
-                    values('$sensorid','$cid','$cur_sigid',1,1,0,now());";
-    $sql[]="insert into iphdr(sid,cid,ip_src,ip_dst,ip_ver,ip_hlen,ip_tos,ip_len,ip_id,ip_flags,ip_off,ip_ttl,ip_proto,ip_csum)
-                    values('$sensorid','$cid','$lower_ip','$upper_ip',4,0,0,0,0,0,0,0,0,0);";
-    $sql[]="insert into notes(sid,cid,user_id,body,created_at,updated_at)
-                    values($sensorid,$cid,1,'$note_body',now(),now());";
+    if(MYSQL)
+    {
+        $sql[]="insert into event(sid,cid,signature,notes_count,type,number_of_events,timestamp) 
+                        values('$sensorid','$cid','$cur_sigid',1,1,0,now());";
+        $sql[]="insert into iphdr(sid,cid,ip_src,ip_dst,ip_ver,ip_hlen,ip_tos,ip_len,ip_id,ip_flags,ip_off,ip_ttl,ip_proto,ip_csum)
+                        values('$sensorid','$cid','$lower_ip','$upper_ip',4,0,0,0,0,0,0,0,0,0);";
+        $sql[]="insert into notes(sid,cid,user_id,body,created_at,updated_at)
+                        values($sensorid,$cid,1,'$note_body',now(),now());";
 
-    saveDB($sql,$con);
+        saveDB($sql,$con);
+    }
+}
+
+function saveCluster($rowresult)
+{
+   global $publisher;
+
+   if(DEBUG) {  echo "Save cluster into GrayLog\n" ;}
+
+   $values             = $rowresult[0]->columns;
+   $cluster_title      = $values["info:title"]->value;
+   $cluster_size       = $values["info:size"]->value;
+   $cluster_centroid   = $values["info:centroid"]->value;
+   $cluster_members_str= $values["info:members"]->value;
+   
+   $cluster_members    = explode(",",$cluster_members_str);
+
+   foreach($cluster_members as $ipaddr)
+   {
+        //$location = geoip_record_by_name($ipaddr);
+        $ip_name=gethostbyaddr($ipaddr);
+
+        $message = new Gelf\Message();
+        $message->setShortMessage($cluster_title)
+                ->setAdditional("cluster_size",$cluster_size)
+                ->setAdditional("cluster_centroid",$cluster_centroid)
+                ->setAdditional("member_ip",$ipaddr)
+                //->setAdditional("location",$location["city"]."/".$location["country_name"])
+                ->setAdditional("dns_reverse",$ip_name)
+                ->setAdditional("priority","INFO")
+                ->setLevel(\Psr\Log\LogLevel::NOTICE);
+        
+        $publisher->publish($message);
+  }
 }
 
 /**
@@ -336,6 +376,30 @@ function getNextHBaseRow()
     return $return;
 }
 
+function getClusterTimeStamp()
+{
+    if(DEBUG) {  echo "Get last Cluster Timestamp\n" ;}
+    global $walClusterFilePath;
+    if(!file_exists($walClusterFilePath))
+    {
+        $file = fopen($walClusterFilePath, "w") or die("Unable to open Cluster WAL file $walClusterFilePath !\n");
+        fwrite($file,"0");
+    }
+    $file = fopen($walClusterFilePath, "r") or die("Unable to open Cluster WAL file $walClusterFilePath !\n");
+    $return=fread($file,filesize($walClusterFilePath));
+    fclose($file);
+    return $return;
+}
+
+function saveClusterTimeStamp($timestamp)
+{
+    if(DEBUG) {  echo "Save Cluster Timestamp\n" ;}
+    global $walClusterFilePath;
+    $file = fopen($walClusterFilePath, "w") or die("Unable to open Cluster WAL file $walClusterFilePath !\n");
+    fwrite($file,$timestamp);
+    fclose($file);
+}
+
 /**
 * Comment-me!
 */
@@ -403,24 +467,29 @@ function saveSignaturesIfNeeded($con)
 // Open connections
 if(DEBUG) {  echo "Open connections\n" ;}
 $transport->open();
-$con=mysql_connect("$mysqlHost:$mysqlPort","$mysqlUser","$mysqlPass"); 
-mysql_select_db ($mysqlDbName,$con);
-if (!$con)
-{ die('Could not connect to MySQL: ' . mysql_error()); }
+if(MYSQL)
+{
+    $con=mysql_connect("$mysqlHost:$mysqlPort","$mysqlUser","$mysqlPass"); 
+    mysql_select_db ($mysqlDbName,$con);
+    if (!$con)
+    { die('Could not connect to MySQL: ' . mysql_error()); }
+}
 
 // Insert Sensor if needed. Get Sensor information
 if(DEBUG) {  echo "Insert sensor, if needed\n" ;}
 $scanner = $client->scannerOpenWithStop("hogzilla_sensor","","", array("sensor:description","sensor:hostname"), array());
 $row=$client->scannerGet($scanner);
 if(sizeof($row)==0) { die("Sensor table is empty in HBase\n"); }
-saveSensor($row,$con);
+if(MYSQL)
+    {saveSensor($row,$con); }
 $client->scannerClose($scanner);
 
 saveSignaturesIfNeeded($con);
 
 // Close everything
 if(DEBUG) {  echo "Close connections\n" ;}
-mysql_close($con);
+if(MYSQL)
+    {mysql_close($con);}
 $transport->close();
 
 /*
@@ -434,10 +503,13 @@ while(true)
         // Open HBase and MySQL connection
         if(DEBUG) {  echo "Open connections\n" ;}
         $transport->open();
-        $con=mysql_connect("$mysqlHost:$mysqlPort","$mysqlUser","$mysqlPass"); 
-        mysql_select_db ($mysqlDbName,$con);
-        if (!$con)
-        { die('Could not connect to MySQL: ' . mysql_error()); }
+        if(MYSQL)
+        {
+           $con=mysql_connect("$mysqlHost:$mysqlPort","$mysqlUser","$mysqlPass"); 
+           mysql_select_db ($mysqlDbName,$con);
+           if (!$con)
+           { die('Could not connect to MySQL: ' . mysql_error()); }
+        }
 
         // GrayLog
         if(GRAYLOG)
@@ -448,7 +520,10 @@ while(true)
         }
 
         // Get last CID from MySQL, this counter will be used on last access
-        $cid=getLastCID($sensorid,$con);
+        if(MYSQL)
+            {$cid=getLastCID($sensorid,$con);}
+        else
+            {$cid=1;}
 
         // Get last seen event
         $startrow=getNextHBaseRow();
@@ -462,7 +537,7 @@ while(true)
                                 array("event:lower_ip","event:upper_ip","event:note","event:signature_id"),
                                 array());
 
-        // Loop events to insert into MySQL
+        // Loop events to insert into MySQL/GrayLog
         while (true) 
         {
                 $row=$client->scannerGet($scanner);
@@ -475,14 +550,46 @@ while(true)
         }
 
         // Update last CID on MySQL, this counter will be used on last access
-        saveLastCID($sensorid,$cid,$con);
+        if(MYSQL)
+            {saveLastCID($sensorid,$cid,$con);}
 
         // Save last seen HBase event
         saveNextHBaseRow($lastHBaseID);
 
-        // Close connections (HBase and MySQL)
-        mysql_close($con);
+        // Close HBase scanner
         $client->scannerClose($scanner);
+
+       /*
+        * Add information about clustering
+        *
+        */
+
+        if(GRAYLOG)
+        {
+            $scanner = $client->scannerOpenWithStop("hogzilla_clusters","","",
+                                    array("info:title","info:size","info:members","info:centroid"),
+                                    array());
+
+
+                $last_timestamp     = getClusterTimeStamp();
+                // Loop events to insert into GrayLog
+                while (true) 
+                {
+                        $row                = $client->scannerGet($scanner);
+                        if(sizeof($row)==0) break;
+                        $values             = $row[0]->columns;
+                        $current_timestamp  = $values["info:title"]->timestamp;
+                        if($current_timestamp <= $last_timestamp) break;
+                        saveCluster($row);
+                        if(DEBUG) { echo "Inserted cluster into GrayLog\n"; }
+                }
+                saveClusterTimeStamp($current_timestamp);
+        }
+
+        // Close connections (HBase and MySQL)
+        if(MYSQL)
+            {mysql_close($con);}
+
         $transport->close();
 
     } catch(Exception $e) 
