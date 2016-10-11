@@ -301,6 +301,7 @@ function saveCluster($rowresult)
                 //->setAdditional("location",$location["city"]."/".$location["country_name"])
                 ->setAdditional("dns_reverse",$ip_name)
                 ->setAdditional("priority","INFO")
+                ->setAdditional("cluster_tag","\"$cluster_title\"")
                 ->setLevel(\Psr\Log\LogLevel::NOTICE);
         
         $publisher->publish($message);
@@ -579,7 +580,7 @@ while(true)
                         if(sizeof($row)==0) break;
                         $values             = $row[0]->columns;
                         $current_timestamp  = $values["info:title"]->timestamp;
-                        if($current_timestamp <= $last_timestamp) break;
+                        if($current_timestamp <= ($last_timestamp+120)) break;
                         saveCluster($row);
                         if(DEBUG) { echo "Inserted cluster into GrayLog\n"; }
                 }
