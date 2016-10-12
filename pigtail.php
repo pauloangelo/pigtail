@@ -215,11 +215,15 @@ function saveEvent($rowresult,$con, $cid)
    $upper_ip        = $upper_ipa[1];
    $note_body       = $values["event:note"]->value;
    $signature_hid   = $values["event:signature_id"]->value;
+   $lower_ip_str    = $values["event:lower_ip_str"]->value;
+   $upper_ip_str    = $values["event:upper_ip_str"]->value;
 
    // GrayLog
    if(GRAYLOG)
    {
-        $ipaddr=long2ip($lower_ip);
+        // Snorby legacy
+        //$ipaddr=long2ip($lower_ip);
+        $ipaddr=$lower_ip_str;
         //$location = geoip_record_by_name($ipaddr);
         $ip_name=gethostbyaddr($ipaddr);
 
@@ -280,6 +284,7 @@ function saveCluster($rowresult)
 
    if(DEBUG) {  echo "Save cluster into GrayLog\n" ;}
 
+   $clusterIdx         = $rowresult[0]->row;
    $values             = $rowresult[0]->columns;
    $cluster_title      = $values["info:title"]->value;
    $cluster_size       = $values["info:size"]->value;
@@ -300,6 +305,7 @@ function saveCluster($rowresult)
                 ->setAdditional("member_ip",$ipaddr)
                 //->setAdditional("location",$location["city"]."/".$location["country_name"])
                 ->setAdditional("dns_reverse",$ip_name)
+                ->setAdditional("cluster_idx",$clusterIdx)
                 ->setAdditional("priority","INFO")
                 ->setAdditional("cluster_tag","\"$cluster_title\"")
                 ->setLevel(\Psr\Log\LogLevel::NOTICE);
@@ -535,7 +541,7 @@ while(true)
         // Get HBase pointer
         //$scanner = $client->scannerOpenWithStop("hogzilla_events",$startrow,"",
         $scanner = $client->scannerOpenWithStop("hogzilla_events","","",
-                                array("event:lower_ip","event:upper_ip","event:note","event:signature_id"),
+                                array("event:lower_ip","event:upper_ip","event:note","event:signature_id","event:lower_ip_str","event:upper_ip_str"),
                                 array());
 
         // Loop events to insert into MySQL/GrayLog
