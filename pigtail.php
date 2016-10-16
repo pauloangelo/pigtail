@@ -631,12 +631,14 @@ while(true)
                      if(sizeof($row)==0) break;
                      $values             = $row[0]->columns;
                      $current_timestamp  = $values["info:title"]->timestamp;
-                     if($current_timestamp <= ($last_timestamp+120)) break;
+                     if($current_timestamp <= ($last_timestamp+3600)) break;
                      //saveCluster($row);
                      saveClusterMember($row);
                      if(DEBUG) { echo "Inserted cluster member into GrayLog\n"; }
              }
              saveClusterTimeStamp($current_timestamp);
+             // Close HBase scanner
+             $client->scannerClose($scanner);
         }
 
         // Close connections (HBase and MySQL)
