@@ -624,6 +624,7 @@ while(true)
 
 
              $last_timestamp     = getClusterTimeStamp();
+             $max_current_timestamp=0;
              // Loop events to insert into GrayLog
              while (true)
              {
@@ -631,12 +632,18 @@ while(true)
                      if(sizeof($row)==0) break;
                      $values             = $row[0]->columns;
                      $current_timestamp  = $values["info:title"]->timestamp;
-                     if($current_timestamp <= ($last_timestamp+3600)) break;
+
+                     if($max_current_timestamp < $current_timestamp)
+                        $max_current_timestamp=$current_timestamp;
+
+                     if($current_timestamp <= ($last_timestamp+3600))
+                        continue;
+
                      //saveCluster($row);
                      saveClusterMember($row);
                      if(DEBUG) { echo "Inserted cluster member into GrayLog\n"; }
              }
-             saveClusterTimeStamp($current_timestamp);
+             saveClusterTimeStamp($max_current_timestamp);
              // Close HBase scanner
              $client->scannerClose($scanner);
         }
