@@ -64,6 +64,7 @@ $mysqlPort="3306";
 // Some not so useful variables
 $walFilePath=realpath(dirname(__FILE__))."/pig.wal";
 $walClusterFilePath=realpath(dirname(__FILE__))."/pigCluster.wal";
+$walInventoryFilePath=realpath(dirname(__FILE__))."/pigInventory.wal";
 $waitTime=600;
 $GLOBALS['THRIFT_ROOT'] = '/usr/lib/php';
 
@@ -217,6 +218,8 @@ function saveEvent($rowresult,$con, $cid)
    $signature_hid   = $values["event:signature_id"]->value;
    $lower_ip_str    = $values["event:lower_ip_str"]->value;
    $upper_ip_str    = $values["event:upper_ip_str"]->value;
+   $ports           = $values["event:ports"]->value;
+   $title           = $values["event:title"]->value;
 
    // GrayLog
    if(GRAYLOG)
@@ -237,6 +240,11 @@ function saveEvent($rowresult,$con, $cid)
                 ->setAdditional("signature",$sig_data[$signature_hid]["signature_name"])
                 //->setAdditional("location",$location["city"]."/".$location["country_name"])
                 ->setAdditional("dns_reverse",$ip_name);
+
+        if(strlen($title)>0)
+        {
+            $message->setShortMessage($title);
+        }
 
         if($sig_data[$signature_hid]["signature_priority"]==1)
         {
@@ -352,6 +360,31 @@ function saveClusterMember($rowresult)
    $publisher->publish($message);
 }
 
+function saveInventory($rowresult)
+{
+   global $publisher;
+
+   if(DEBUG) {  echo "Save inventory information into GrayLog\n" ;}
+
+   $values             = $rowresult[0]->columns;
+   //$title              = $values["info:title"]->value;
+   $ipaddr             = $values["info:ip"]->value;
+   $oSystem            = $values["info:OS"]->value;
+
+   //$location = geoip_record_by_name($ipaddr);
+   $ip_name=gethostbyaddr($ipaddr);
+
+   $message = new Gelf\Message();
+   $message->setShortMessage("Inventory information for ".$ipaddr)
+           ->setAdditional("ip",$ipaddr)
+           ->setAdditional("dns_reverse",$ip_name)
+           ->setAdditional("operating_system",$oSystem)
+           ->setAdditional("priority","INFO")
+           ->setLevel(\Psr\Log\LogLevel::NOTICE);
+
+   $publisher->publish($message);
+}
+
 
 /**
 * Comment-me!
@@ -442,6 +475,30 @@ function saveClusterTimeStamp($timestamp)
     if(DEBUG) {  echo "Save Cluster Timestamp\n" ;}
     global $walClusterFilePath;
     $file = fopen($walClusterFilePath, "w") or die("Unable to open Cluster WAL file $walClusterFilePath !\n");
+    fwrite($file,$timestamp);
+    fclose($file);
+}
+
+function getInventoryTimeStamp()
+{
+    if(DEBUG) {  echo "Get last Inventory Timestamp\n" ;}
+    global $walInventoryFilePath;
+    if(!file_exists($walInventoryFilePath))
+    {
+        $file = fopen($walInventoryFilePath, "w") or die("Unable to open Inventory WAL file $walInventoryFilePath !\n");
+        fwrite($file,"0");
+    }
+    $file = fopen($walInventoryFilePath, "r") or die("Unable to open Inventory WAL file $walInventoryFilePath !\n");
+    $return=fread($file,filesize($walInventoryFilePath));
+    fclose($file);
+    return $return;
+}
+
+function saveInventoryTimeStamp($timestamp)
+{
+    if(DEBUG) {  echo "Save Inventory Timestamp\n" ;}
+    global $walInventoryFilePath;
+    $file = fopen($walInventoryFilePath, "w") or die("Unable to open Inventory WAL file $walInventoryFilePath !\n");
     fwrite($file,$timestamp);
     fclose($file);
 }
@@ -616,6 +673,7 @@ while(true)
              //                       array("info:title","info:size","info:members","info:centroid"),
              //                       array());
 
+             // Clusters
              $scanner = $client->scannerOpenWithStop("hogzilla_cluster_members","","",
                                     array("info:title","cluster:size","cluster:centroid","cluster:idx",
                                           "cluster:description","member:ports","member:frequencies",
@@ -644,6 +702,41 @@ while(true)
                      if(DEBUG) { echo "Inserted cluster member into GrayLog\n"; }
              }
              saveClusterTimeStamp($max_current_timestamp);
+             // Close HBase scanner
+             $client->scannerClose($scanner);
+
+
+             // Inventory
+             $scanner = $client->scannerOpenWithStop("hogzilla_inventory","","",
+                                    array("info:OS","info:ip"),
+                                    array());
+
+
+             $last_timestamp     = getInventoryTimeStamp();
+             $max_current_timestamp=0;
+             // Loop events to insert into GrayLog
+             $now=time();
+             if($last_timestamp< $now-(60*60*24))
+             {
+                while (true)
+                {
+                        $row                = $client->scannerGet($scanner);
+                        if(sizeof($row)==0) break;
+                        $values             = $row[0]->columns;
+                        $current_timestamp  = $values["info:ip"]->timestamp;
+
+                        if($max_current_timestamp < $current_timestamp)
+                           $max_current_timestamp=$current_timestamp;
+
+                        //if($current_timestamp <= ($last_timestamp+3600))
+                        //  continue;
+
+                        saveInventory($row);
+                        if(DEBUG) { echo "Inserted inventory information into GrayLog\n"; }
+                }
+                //saveInventoryTimeStamp($max_current_timestamp);
+                saveInventoryTimeStamp($now);
+             }
              // Close HBase scanner
              $client->scannerClose($scanner);
         }
