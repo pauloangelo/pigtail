@@ -637,8 +637,9 @@ while(true)
         // Get HBase pointer
         //$scanner = $client->scannerOpenWithStop("hogzilla_events",$startrow,"",
         $scanner = $client->scannerOpenWithStop("hogzilla_events","","",
-                                array("event:lower_ip","event:upper_ip","event:note","event:signature_id","event:lower_ip_str","event:upper_ip_str"),
-                                array());
+                                                array("event:lower_ip","event:upper_ip","event:note","event:signature_id",
+                                                "event:lower_ip_str","event:upper_ip_str","event:ports","event:title"),
+                                                array());
 
         // Loop events to insert into MySQL/GrayLog
         while (true)
