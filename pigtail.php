@@ -56,7 +56,7 @@
 $graylog_host="grayloghost";
 $graylog_port="12201";
 $sensorName="Hogzilla";
-$hbaseHost="hoghbasehost"; /* Host or IP of your HBase  */
+$hbaseHost="127.0.0.1"; /* Host or IP of your HBase  */
 $hbasePort=9090;
 $mysqlUser="snorby";
 $mysqlDbName="snorby";
@@ -69,7 +69,7 @@ $walFilePath=realpath(dirname(__FILE__))."/pig.wal";
 $walClusterFilePath=realpath(dirname(__FILE__))."/pigCluster.wal";
 $walInventoryFilePath=realpath(dirname(__FILE__))."/pigInventory.wal";
 $waitTime=600;
-$GLOBALS['THRIFT_ROOT'] = '/usr/lib/php';
+$GLOBALS['THRIFT_ROOT'] = '/usr/share/php';
 //$GLOBALS['THRIFT_ROOT'] = '/home/hogzilla/pigtail/php';
 
 
@@ -584,7 +584,7 @@ if(MYSQL)
 if(DEBUG) {  echo "Insert sensor, if needed\n" ;}
 $scanner = $client->scannerOpenWithStop("hogzilla_sensor","","", array("sensor:description","sensor:hostname"), array());
 $row=$client->scannerGet($scanner);
-if(sizeof($row)==0) { die("Sensor table is empty in HBase\n"); }
+if(sizeof($row)==0) { die("Sensor table is empty in HBase. Hogzilla didn't run for the first time.\n"); }
 if(MYSQL)
     {saveSensor($row,$con); }
 $client->scannerClose($scanner);
