@@ -752,6 +752,13 @@ while(true)
 
     } catch(Exception $e)
     {
+      $socket     = new Thrift\Transport\TSocket($hbaseHost, $hbasePort);
+      $socket->setSendTimeout(10000);
+      $socket->setRecvTimeout(20000);
+      $transport  = new Thrift\Transport\TBufferedTransport($socket);
+      $protocol   = new Thrift\Protocol\TBinaryProtocol($transport);
+      $client     = new Hbase\HbaseClient($protocol);
+
       echo 'ERROR: ',  $e->getMessage(), "\n";
     }
 
