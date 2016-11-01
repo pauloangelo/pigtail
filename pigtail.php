@@ -53,6 +53,9 @@
 */
 
 // Some useful variables
+$graylog_host="grayloghost";
+$graylog_port="12201";
+$sensorName="Hogzilla";
 $hbaseHost="hoghbasehost"; /* Host or IP of your HBase  */
 $hbasePort=9090;
 $mysqlUser="snorby";
@@ -67,13 +70,12 @@ $walClusterFilePath=realpath(dirname(__FILE__))."/pigCluster.wal";
 $walInventoryFilePath=realpath(dirname(__FILE__))."/pigInventory.wal";
 $waitTime=600;
 $GLOBALS['THRIFT_ROOT'] = '/usr/lib/php';
+//$GLOBALS['THRIFT_ROOT'] = '/home/hogzilla/pigtail/php';
 
-$graylog_host="177.220.1.6";
-$sensorName="Hogzilla";
 
 define("DEBUG",false);
 define("GRAYLOG",true);
-define("MYSQL",true); // Must be always true... :)  Future implementation... (TODO)
+define("MYSQL",false);
 
 
 // GELF Stuff, for GrayLog
@@ -617,7 +619,7 @@ while(true)
         // GrayLog
         if(GRAYLOG)
         {
-            $graylogTransport = new Gelf\Transport\UdpTransport($graylog_host, 12201, Gelf\Transport\UdpTransport::CHUNK_SIZE_LAN);
+            $graylogTransport = new Gelf\Transport\UdpTransport($graylog_host, $graylog_port, Gelf\Transport\UdpTransport::CHUNK_SIZE_LAN);
             $publisher = new Gelf\Publisher();
             $publisher->addTransport($graylogTransport);
         }
