@@ -222,6 +222,7 @@ function saveEvent($rowresult,$con, $cid)
    $upper_ip_str    = $values["event:upper_ip_str"]->value;
    $ports           = $values["event:ports"]->value;
    $title           = $values["event:title"]->value;
+   $username        = $values["event:username"]->value;
 
    // GrayLog
    if(GRAYLOG)
@@ -239,6 +240,7 @@ function saveEvent($rowresult,$con, $cid)
                 ->setAdditional("reference","http://ids-hogzilla.org/signature-db/$signature_hid")
                 ->setAdditional("ip",$ipaddr)
                 ->setAdditional("ports",$ports)
+                ->setAdditional("username",$username)
                 ->setAdditional("signature",$sig_data[$signature_hid]["signature_name"])
                 //->setAdditional("location",$location["city"]."/".$location["country_name"])
                 ->setAdditional("dns_reverse",$ip_name);
@@ -639,7 +641,7 @@ while(true)
         // Get HBase pointer
         //$scanner = $client->scannerOpenWithStop("hogzilla_events",$startrow,"",
         $scanner = $client->scannerOpenWithStop("hogzilla_events","","",
-                                                array("event:lower_ip","event:upper_ip","event:note","event:signature_id",
+                                                array("event:lower_ip","event:upper_ip","event:note","event:signature_id","event:username",
                                                 "event:lower_ip_str","event:upper_ip_str","event:ports","event:title"),
                                                 array());
 
