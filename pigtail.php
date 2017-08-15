@@ -75,6 +75,7 @@ $GLOBALS['THRIFT_ROOT'] = '/usr/share/php';
 
 define("DEBUG",false);
 define("GRAYLOG",true);
+define("EMAIL_AUTH",true);
 define("MYSQL",false);
 
 
@@ -224,6 +225,11 @@ function saveEvent($rowresult,$con, $cid)
    $title           = $values["event:title"]->value;
    $username        = $values["event:username"]->value;
 
+   if(EMAIL_AUTH && ( $signature_hid == 826001201 || $signature_hid == 826001202)) {
+           $export=str_replace("'","",$note_body);
+           system("echo '$export' >> /tmp/auth_events.txt");
+   }
+
    // GrayLog
    if(GRAYLOG)
    {
@@ -232,6 +238,7 @@ function saveEvent($rowresult,$con, $cid)
         $ipaddr=$lower_ip_str;
         //$location = geoip_record_by_name($ipaddr);
         $ip_name=gethostbyaddr($ipaddr);
+
 
         $message = new Gelf\Message();
         $message->setShortMessage($sig_data[$signature_hid]["signature_name"]." - ".$ipaddr)
