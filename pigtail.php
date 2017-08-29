@@ -224,6 +224,7 @@ function saveEvent($rowresult,$con, $cid)
    $ports           = $values["event:ports"]->value;
    $title           = $values["event:title"]->value;
    $username        = $values["event:username"]->value;
+   $coords          = $values["event:coords"]->value;
 
    if(EMAIL_AUTH && ( $signature_hid == 826001201 || $signature_hid == 826001202)) {
            $export=str_replace("'","",$note_body);
@@ -248,6 +249,7 @@ function saveEvent($rowresult,$con, $cid)
                 ->setAdditional("ip",$ipaddr)
                 ->setAdditional("ports",$ports)
                 ->setAdditional("username",$username)
+                ->setAdditional("coords",$coords)
                 ->setAdditional("signature",$sig_data[$signature_hid]["signature_name"])
                 //->setAdditional("location",$location["city"]."/".$location["country_name"])
                 ->setAdditional("dns_reverse",$ip_name);
@@ -648,7 +650,7 @@ while(true)
         // Get HBase pointer
         //$scanner = $client->scannerOpenWithStop("hogzilla_events",$startrow,"",
         $scanner = $client->scannerOpenWithStop("hogzilla_events","","",
-                                                array("event:lower_ip","event:upper_ip","event:note","event:signature_id","event:username",
+                                                array("event:lower_ip","event:upper_ip","event:note","event:signature_id","event:username","event:coords",
                                                 "event:lower_ip_str","event:upper_ip_str","event:ports","event:title"),
                                                 array());
 
