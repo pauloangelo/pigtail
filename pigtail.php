@@ -226,7 +226,7 @@ function saveEvent($rowresult,$con, $cid)
    $username        = $values["event:username"]->value;
    $coords          = $values["event:coords"]->value;
 
-   if(EMAIL_AUTH && ( $signature_hid == 826001201 || $signature_hid == 826001202)) {
+   if(EMAIL_AUTH && ( $signature_hid == 826001201 || $signature_hid == 826001202 || $signature_hid == 826001204)) {
            $export=str_replace("'","",$note_body);
            system("echo '$export' >> /tmp/auth_events.txt");
    }
